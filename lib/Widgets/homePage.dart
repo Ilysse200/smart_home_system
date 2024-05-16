@@ -71,6 +71,13 @@ class _HomePageState extends State<HomePage>
                 Navigator.push(context, MaterialPageRoute(builder: (context) => BrightnessControl()));
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.map, color: Colors.black), // Google map icon
+              title: const Text('Map Icon', style: TextStyle(color: Colors.black)),
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => BrightnessControl()));
+              },
+            ),
           ],
         ),
       ),
