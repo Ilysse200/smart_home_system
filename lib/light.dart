@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:light_sensor/light_sensor.dart';
 import 'package:screen_brightness/screen_brightness.dart';
-
-// ignore_for_file: unused_field
-
-import 'dart:async';
-
 import 'package:smart_home_system/main.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
+import 'dart:async';
 
 class BrightnessControl extends StatefulWidget {
   const BrightnessControl({super.key});
@@ -17,9 +14,10 @@ class BrightnessControl extends StatefulWidget {
 
 class _BrightnessControlState extends State<BrightnessControl> {
   double _lightLevel = 0.0;
-  bool _showHighIntensityPopup = true; // Flag for showing high intensity popup
-  bool _showLowIntensityPopup = true; // Flag for showing low intensity popup
+  bool _showHighIntensityPopup = true;
+  bool _showLowIntensityPopup = true;
   late StreamSubscription<int> _lightSubscription;
+  List<LightData> _lightData = [];
 
   @override
   void initState() {
@@ -33,6 +31,10 @@ class _BrightnessControlState extends State<BrightnessControl> {
         _lightSubscription = LightSensor.luxStream().listen((int luxValue) {
           setState(() {
             _lightLevel = luxValue.toDouble();
+            _lightData.add(LightData(DateTime.now(), _lightLevel));
+            if (_lightData.length > 100) {
+              _lightData.removeAt(0);
+            }
             checkAndTriggerPopups();
           });
         });
@@ -43,22 +45,57 @@ class _BrightnessControlState extends State<BrightnessControl> {
   }
 
   void checkAndTriggerPopups() {
-    // Check for the specific intensity values to trigger popups
-    if (_lightLevel >= 500.0 && _showHighIntensityPopup) {
+    if (_lightLevel >= 2000.0 && _showHighIntensityPopup) {
       _showNotification('Light Intensity', 'High ambient light levels.');
-      _showHighIntensityPopup =
-          false; // Prevent further high intensity popups until condition resets
-    } else if (_lightLevel < 500.0) {
-      _showHighIntensityPopup = true; // Reset the flag when not at 40000
+      _showAlertDialog('Warning!', 'Too much brightness can be harmful to our eyes.', Icons.warning, Colors.red);
+      _showHighIntensityPopup = false;
+    } else if (_lightLevel < 2000.0) {
+      _showHighIntensityPopup = true;
     }
 
-    if (_lightLevel <= 250 && _showLowIntensityPopup) {
+    if (_lightLevel <= 500.0 && _showLowIntensityPopup) {
       _showNotification('Light Intensity', 'Low ambient light levels.');
-      _showLowIntensityPopup =
-          false; // Prevent further low intensity popups until condition resets
-    } else if (_lightLevel != 0) {
-      _showLowIntensityPopup = true; // Reset the flag when not at 0
+      _showAlertDialog('Warning!', 'Too little light can be harmful to our eyes.', Icons.warning, Colors.blue);
+      _showLowIntensityPopup = false;
+    } else if (_lightLevel > 500.0) {
+      _showLowIntensityPopup = true;
     }
+  }
+
+  Color _getLineColor(double intensity) {
+    if (intensity >= 2000.0) {
+      return Colors.red;
+    } else if (intensity >= 500.0) {
+      return Colors.pink;
+    } else {
+      return Colors.black;
+    }
+  }
+
+  void _showAlertDialog(String title, String message, IconData icon, Color iconColor) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(icon, color: iconColor),
+              SizedBox(width: 10),
+              Text(title),
+            ],
+          ),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -77,24 +114,17 @@ class _BrightnessControlState extends State<BrightnessControl> {
             ),
             SizedBox(height: 20),
             Container(
-              width: 50,
+              width: double.infinity,
               height: 300,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  Container(
-                    decoration:BoxDecoration(borderRadius: BorderRadius.circular(20), color: Colors.yellow,),
-                    width: 50,
-                    height: 10 * _lightLevel,
-                  ),
-                  Icon(
-                    Icons.lightbulb_rounded,
-                    size: 50,
-                    color: Colors.orange[900],
+              child: SfCartesianChart(
+                primaryXAxis: DateTimeAxis(),
+                primaryYAxis: NumericAxis(minimum: 0, maximum: 3000),
+                series: <CartesianSeries>[
+                  LineSeries<LightData, DateTime>(
+                    dataSource: _lightData,
+                    xValueMapper: (LightData data, _) => data.time,
+                    yValueMapper: (LightData data, _) => data.intensity,
+                    color: _getLineColor(_lightLevel),
                   ),
                 ],
               ),
@@ -108,8 +138,8 @@ class _BrightnessControlState extends State<BrightnessControl> {
   void _showNotification(String header, String body) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'LightSensor_channel', // Change this to match your channel ID
-      'Light Sensor Notifications', // Replace with your own channel name
+      'LightSensor_channel',
+      'Light Sensor Notifications',
       importance: Importance.max,
       priority: Priority.high,
     );
@@ -122,4 +152,10 @@ class _BrightnessControlState extends State<BrightnessControl> {
       platformChannelSpecifics,
     );
   }
+}
+
+class LightData {
+  LightData(this.time, this.intensity);
+  final DateTime time;
+  final double intensity;
 }

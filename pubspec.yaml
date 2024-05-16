@@ -37,6 +37,7 @@ dependencies:
   flutter_local_notifications: ^17.1.2
   light_sensor: ^3.0.0
   flutter_polyline_points: ^2.0.0
+  syncfusion_flutter_charts: ^25.2.4
 
 
 
