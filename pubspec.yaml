@@ -30,6 +30,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  sensors_plus: ^5.0.1
+  google_maps_flutter: ^2.6.1
+  location: ^6.0.2
+  screen_brightness: ^1.0.1
+  flutter_local_notifications: ^17.1.2
+  light_sensor: ^3.0.0
 
 
   # The following adds the Cupertino Icons font to your application.
@@ -45,7 +51,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^3.0.0
+  flutter_lints: ^4.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
