@@ -92,9 +92,9 @@ class _BrightnessControlState extends State<BrightnessControl> {
                     height: 10 * _lightLevel,
                   ),
                   Icon(
-                    Icons.lightbulb,
+                    Icons.lightbulb_rounded,
                     size: 50,
-                    color: Colors.yellow[900],
+                    color: Colors.orange[900],
                   ),
                 ],
               ),
