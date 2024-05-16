@@ -75,31 +75,34 @@ class _SimpleMapState extends State<SimpleMap> {
   }
 
   void _createGeofence() {
-    // Define the boundaries for the larger geofence around Kigali
-    List<LatLng> fenceBounds = [
-      LatLng(-1.9740, 30.0274), // Northwest corner
-      LatLng(-1.9740, 30.1300), // Northeast corner
-      LatLng(-1.8980, 30.1300), // Southeast corner
-    ];
+  // Define the boundaries for the five-sided geofence
+  List<LatLng> fenceBounds = [
+    LatLng(-1.9740, 30.0274), // Northwest corner
+    LatLng(-1.9740, 30.1300), // Northeast corner
+    LatLng(-1.8980, 30.1300), // Southeast corner
+    LatLng(-1.9120, 30.0787), // Southwest point (custom)
+    LatLng(-1.9480, 30.0500), // Center west point (custom)
+  ];
 
-    // Create a polygon to represent the geofence boundaries
-    PolygonId polygonId = PolygonId('myFence');
-    Polygon polygon = Polygon(
-      polygonId: polygonId,
-      points: fenceBounds,
-      strokeWidth: 2,
-      strokeColor: Color.fromARGB(255, 179, 0, 0),
-      fillColor: Color.fromARGB(237, 245, 110, 110).withOpacity(0.3),
-    );
+  // Create a polygon to represent the geofence boundaries
+  PolygonId polygonId = PolygonId('fiveSidedFence');
+  Polygon polygon = Polygon(
+    polygonId: polygonId,
+    points: fenceBounds,
+    strokeWidth: 2,
+    strokeColor: Color.fromARGB(236, 142, 129, 218).withOpacity(0.3),
+    fillColor: Color.fromARGB(27, 136, 98, 130).withOpacity(0.3),
+  );
 
-    // Add the polygon to the map
-    setState(() {
-      _polygons[polygonId] = polygon;
-    });
+  // Add the polygon to the map
+  setState(() {
+    _polygons[polygonId] = polygon;
+  });
 
-    // Start location updates subscription to monitor device's location
-    _startLocationUpdates();
-  }
+  // Start location updates subscription to monitor device's location
+  _startLocationUpdates();
+}
+
 
   void _startLocationUpdates() async {
     _locationSubscription = _locationController.onLocationChanged
