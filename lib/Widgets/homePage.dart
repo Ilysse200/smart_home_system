@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smart_home_system/Widgets/Screen/pedometer.dart';
+import 'package:smart_home_system/Widgets/geofencing.dart';
 import 'package:smart_home_system/Widgets/motionDetector.dart';
 import 'package:smart_home_system/light.dart';
 
@@ -75,7 +76,7 @@ class _HomePageState extends State<HomePage>
               leading: const Icon(Icons.map, color: Colors.black), // Google map icon
               title: const Text('Map Icon', style: TextStyle(color: Colors.black)),
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => BrightnessControl()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => SimpleMap()));
               },
             ),
           ],
