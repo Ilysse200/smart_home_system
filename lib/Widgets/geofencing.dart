@@ -1,291 +1,302 @@
 import 'dart:async';
 import 'dart:math';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:geo_fencing_demo/constant.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:smart_home_system/Widgets/constant.dart';
-import 'package:smart_home_system/main.dart';
 
-class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+class SimpleMap extends StatefulWidget {
+  const SimpleMap({super.key});
 
   @override
-  State<MapScreen> createState() => _MapScreenState();
+  State<SimpleMap> createState() => _SimpleMapState();
 }
 
-class _MapScreenState extends State<MapScreen> {
-  Location _locationService = Location();
-  final Completer<GoogleMapController> _googleMapController = Completer<GoogleMapController>();
-  LatLng _centralKigali = LatLng(-1.9441, 30.0619); // Coordinates for Kigali center
-  static const LatLng _googlePlex = LatLng(37.4223, -122.0848);
-  static const LatLng _applePark = LatLng(37.3346, -122.0090);
-  LatLng? _currentPosition;
-  Map<PolylineId, Polyline> _routePolylines = {};
-  Circle? _geofenceCircle;
-  StreamSubscription<LocationData>? _locationStreamSubscription;
-  bool _insideGeofenceNotificationSent = false;
-  bool _outsideGeofenceNotificationSent = false;
+class _SimpleMapState extends State<SimpleMap> {
+  final LatLng destinationLocation = LatLng(-1.9501, 30.0589); // Example coordinates for KK 561 St
+  final Completer<GoogleMapController> _controller = Completer();
+
+  static const LatLng _pGooglePlex=LatLng(37.4223, -122.0848);
+  static const LatLng _pApplePark=LatLng(37.3346, -122.0090);
+
+  Location _locationController = Location();
+  Map<PolygonId, Polygon> _polygons = {};
+  Map<PolylineId, Polyline> polylines = {};
+
+  Set<Marker> _markers = {}; // Initialize an empty set of markers
+  LatLng? currentLocation; // Assuming you have a way to get the current location
+  Location location = Location();
+  StreamSubscription<LocationData>? _locationSubscription;
+
+  bool _notificationSentOutSide = false;
+  bool _notificationSentInSide = false;
+
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
   @override
   void initState() {
     super.initState();
-    initializeLocationUpdates().then(
-      (_) => {
-        retrievePolylineCoordinates().then((points) => {
-              createPolylineFromCoordinates(points),
-            }),
-      },
+    _initializeNotifications();
+    getCurrentLocation();
+    _createGeofence();
+    getPolylinePoints().then((coordinates) => {
+              generatePolyLineFromPoints(coordinates),
+    });
+  }
+  
+
+  void _initializeNotifications() {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    final InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
     );
-    setupGeofence();
+
+    flutterLocalNotificationsPlugin.initialize(initializationSettings);
   }
 
-  @override
-  void dispose() {
-    _locationStreamSubscription?.cancel(); // Cancel location updates subscription
-    super.dispose();
+  void getCurrentLocation() async {
+    currentLocation = await location.getLocation().then((value) {
+      currentLocation = LatLng(value.latitude!, value.longitude!);
+      addCurrentLocMarker(currentLocation!);
+      return currentLocation;
+    });
+
+    _locationSubscription = location.onLocationChanged.listen((newLoc) {
+      setState(() {
+        currentLocation = LatLng(newLoc.latitude!, newLoc.longitude!);
+        addCurrentLocMarker(currentLocation!);
+        _checkGeofenceStatus(newLoc.latitude!, newLoc.longitude!);
+      });
+    });
+  }
+
+  void _createGeofence() {
+    // Define the boundaries for the larger geofence around Kigali
+    List<LatLng> fenceBounds = [
+      LatLng(-1.9740, 30.0274), // Northwest corner
+      LatLng(-1.9740, 30.1300), // Northeast corner
+      LatLng(-1.8980, 30.1300), // Southeast corner
+    ];
+
+    // Create a polygon to represent the geofence boundaries
+    PolygonId polygonId = PolygonId('myFence');
+    Polygon polygon = Polygon(
+      polygonId: polygonId,
+      points: fenceBounds,
+      strokeWidth: 2,
+      strokeColor: Color.fromARGB(255, 179, 0, 0),
+      fillColor: Color.fromARGB(237, 245, 110, 110).withOpacity(0.3),
+    );
+
+    // Add the polygon to the map
+    setState(() {
+      _polygons[polygonId] = polygon;
+    });
+
+    // Start location updates subscription to monitor device's location
+    _startLocationUpdates();
+  }
+
+  void _startLocationUpdates() async {
+    _locationSubscription = _locationController.onLocationChanged
+        .listen((LocationData currentLocation) {
+      // Check if the device's location is inside or outside the geofence
+      bool insideGeofence = _isLocationInsideGeofence(
+          currentLocation.latitude!, currentLocation.longitude!);
+
+      if (insideGeofence && !_notificationSentInSide) {
+        _triggerInSideNotification();
+        _notificationSentInSide = true;
+        _notificationSentOutSide = false;
+      } else if (!insideGeofence && !_notificationSentOutSide) {
+        _triggerOutSideNotification();
+        _notificationSentOutSide = true;
+        _notificationSentInSide = false;
+   }});}
+
+  void addCurrentLocMarker(LatLng location) {
+    Marker currentLocMarker = Marker(
+      markerId: MarkerId('currentLocation'),
+      icon: BitmapDescriptor.defaultMarker,
+      position: location,
+      infoWindow: InfoWindow(title: 'Current Location', snippet: 'You are here'),
+    );
+    setState(() {
+      _markers.add(currentLocMarker);
+    });
+  }
+
+  void addDestinationMarker() {
+    Marker destinationMarker = Marker(
+      markerId: MarkerId('destinationLocation'),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+      position: destinationLocation,
+      infoWindow: InfoWindow(title: 'Destination Location', snippet: 'Destination location...'),
+    );
+    setState(() {
+      _markers.add(destinationMarker);
+    });
+  }
+
+  void _checkGeofenceStatus(double latitude, double longitude) {
+    bool insideGeofence = _isLocationInsideGeofence(latitude, longitude);
+
+    if (insideGeofence && !_notificationSentInSide) {
+      _triggerInSideNotification();
+      _notificationSentInSide = true;
+      _notificationSentOutSide = false;
+    } else if (!insideGeofence && !_notificationSentOutSide) {
+      _triggerOutSideNotification();
+      _notificationSentOutSide = true;
+      _notificationSentInSide = false;
+    }
+  }
+
+  bool _isLocationInsideGeofence(double latitude, double longitude) {
+    // Check if the provided location is inside the geofence boundaries
+    bool isInside = false;
+    List<LatLng> fenceBoundaries = [
+      LatLng(-1.9740, 30.0274),
+      LatLng(-1.9740, 30.1300),
+      LatLng(-1.8980, 30.0274),
+    ];
+
+    // Algorithm to determine if a point is inside a polygon
+    int i, j = fenceBoundaries.length - 1;
+    for (i = 0; i < fenceBoundaries.length; i++) {
+      if ((fenceBoundaries[i].latitude < latitude &&
+                  fenceBoundaries[j].latitude >= latitude ||
+              fenceBoundaries[j].latitude < latitude &&
+                  fenceBoundaries[i].latitude >= latitude) &&
+          (fenceBoundaries[i].longitude <= longitude ||
+              fenceBoundaries[j].longitude <= longitude)) {
+        if (fenceBoundaries[i].longitude +
+                (latitude - fenceBoundaries[i].latitude) /
+                    (fenceBoundaries[j].latitude -
+                        fenceBoundaries[i].latitude) *
+                    (fenceBoundaries[j].longitude -
+                        fenceBoundaries[i].longitude) <
+            longitude) {
+          isInside = !isInside;
+        }
+      }
+      j = i;
+    }
+    return isInside;
+  }
+
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const double p = 0.017453292519943295; // PI / 180
+    final double a = 0.5 - 
+        cos((lat2 - lat1) * p) / 2 + 
+        cos(lat1 * p) * cos(lat2 * p) * 
+        (1 - cos((lon2 - lon1) * p)) / 2;
+    return 12742 * asin(sqrt(a)) * 1000; // 2 * R; R = 6371 km
+  }
+
+  Future<void> _triggerInSideNotification() async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'geo_fence_channel',
+      'Geofence Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      'Inside Geofence',
+      'You are inside the geofence area.',
+      platformChannelSpecifics,
+    );
+    print('Inside geofence notification sent');
+  }
+  
+
+  Future<void> _triggerOutSideNotification() async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'geo_fence_channel',
+      'Geofence Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      'Outside Geofence',
+      'You are outside the geofence area.',
+      platformChannelSpecifics,
+    );
+    print('Outside geofence notification sent');
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: theme.hintColor,
-        title: Text(
-          'Your Location',
-          style: TextStyle(color: theme.primaryColor),
-        ),
-        iconTheme: IconThemeData(
-          color: theme.primaryColor,
-        ),
+        title: const Text("Simple Google Map"),
+        centerTitle: true,
       ),
-      body: _currentPosition == null
-          ? const Center(
-              child: Text("Loading..."),
-            )
-          : GoogleMap(
+      body: GoogleMap(
               onMapCreated: ((GoogleMapController controller) =>
-                  _googleMapController.complete(controller)),
+                  _controller.complete(controller)),
               initialCameraPosition: CameraPosition(
-                target: _centralKigali,
+                target: destinationLocation,
                 zoom: 13,
               ),
-              circles: _geofenceCircle != null ? {_geofenceCircle!} : {},
+              polygons: Set<Polygon>.of(_polygons.values),
               markers: {
                 Marker(
-                  markerId: MarkerId("_currentPosition"),
+                  markerId: MarkerId("_currentLocation"),
                   icon: BitmapDescriptor.defaultMarker,
-                  position: _currentPosition!,
+                  position: currentLocation!,
                 ),
                 Marker(
-                    markerId: MarkerId("_startLocation"),
+                    markerId: MarkerId("_sourceLocation"),
                     icon: BitmapDescriptor.defaultMarker,
-                    position: _googlePlex),
+                    position: _pGooglePlex),
                 Marker(
-                    markerId: MarkerId("_endLocation"),
+                    markerId: MarkerId("_destionationLocation"),
                     icon: BitmapDescriptor.defaultMarker,
-                    position: _applePark)
+                    position: _pApplePark)
               },
-              polylines: Set<Polyline>.of(_routePolylines.values),
+              polylines: Set<Polyline>.of(polylines.values),
             ),
     );
   }
 
-  void sendInsideGeofenceNotification() async {
-    if (!_insideGeofenceNotificationSent) {
-      const AndroidNotificationDetails androidPlatformChannelSpecifics =
-          AndroidNotificationDetails(
-        'Geofence_channel', // Change this to match your channel ID
-        'Geofence Notifications', // Replace with your own channel name
-        importance: Importance.max,
-        priority: Priority.high,
-      );
-      const NotificationDetails platformChannelSpecifics =
-          NotificationDetails(android: androidPlatformChannelSpecifics);
-      await flutterLocalNotificationsPlugin.show(
-        0,
-        'Hello!',
-        'Inside Geographical Boundaries of Kigali',
-        platformChannelSpecifics,
-      );
-      print('Inside geofence notification sent');
-      _insideGeofenceNotificationSent = true;
-      _outsideGeofenceNotificationSent = false;
-    }
+  @override
+  void dispose() {
+    _locationSubscription?.cancel();
+    super.dispose();
   }
 
-  void sendOutsideGeofenceNotification() async {
-    if (!_outsideGeofenceNotificationSent) {
-      const AndroidNotificationDetails androidPlatformChannelSpecifics =
-          AndroidNotificationDetails(
-        'Geofence_channel', // Change this to match your channel ID
-        'Geofence Notifications', // Replace with your own channel name
-        importance: Importance.max,
-        priority: Priority.high,
-      );
-      const NotificationDetails platformChannelSpecifics =
-          NotificationDetails(android: androidPlatformChannelSpecifics);
-      await flutterLocalNotificationsPlugin.show(
-        0,
-        'Hello!',
-        'Outside Geographical Boundaries of Kigali',
-        platformChannelSpecifics,
-      );
-      print('Outside geofence notification sent');
-      _outsideGeofenceNotificationSent = true;
-      _insideGeofenceNotificationSent = false;
-    }
-  }
-
-  void setupGeofence() {
-    // Define the center and radius for the circular geofence around Kigali
-    LatLng geofenceCenter = _centralKigali;
-    double geofenceRadius = 5000; // in meters
-
-    // Create a circle to represent the geofence boundaries
-    Circle geofence = Circle(
-      circleId: CircleId('kigali_geofence'),
-      center: geofenceCenter,
-      radius: geofenceRadius,
-      strokeWidth: 2,
-      strokeColor: Colors.blue,
-      fillColor: Colors.blue.withOpacity(0.3),
-    );
-
-    // Add the circle to the map
+  void generatePolyLineFromPoints(List<LatLng> polylineCoordinates) async {
+    PolylineId id = PolylineId("poly");
+    Polyline polyline = Polyline(
+        polylineId: id,
+        color: Colors.black,
+        points: polylineCoordinates,
+        width: 8);
     setState(() {
-      _geofenceCircle = geofence;
-    });
-
-    // Start location updates subscription to monitor device's location
-    startLocationUpdates();
-  }
-
-  void startLocationUpdates() async {
-    _locationStreamSubscription = _locationService.onLocationChanged
-        .listen((LocationData currentLocation) {
-      // Check if the device's location is inside or outside the geofence
-      bool insideGeofence = isInsideGeofence(
-          currentLocation.latitude!, currentLocation.longitude!);
-
-      if (insideGeofence && !_insideGeofenceNotificationSent) {
-        sendInsideGeofenceNotification();
-        _insideGeofenceNotificationSent = true;
-        _outsideGeofenceNotificationSent = false;
-      } else if (!insideGeofence && !_outsideGeofenceNotificationSent) {
-        sendOutsideGeofenceNotification();
-        _outsideGeofenceNotificationSent = true;
-        _insideGeofenceNotificationSent = false;
-      }
+      polylines[id] = polyline;
     });
   }
-
-  bool isInsideGeofence(double latitude, double longitude) {
-    // Check if the provided location is inside the geofence boundaries
-    final distance = _calculateDistance(
-        latitude, longitude, _centralKigali.latitude, _centralKigali.longitude);
-    return distance <= _geofenceCircle!.radius;
-  }
-
- double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const p = 0.017453292519943295; // Math.PI / 180
-    final a = 0.5 -
-        c((lat2 - lat1) * p) / 2 +
-        c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p)) / 2;
-    return 12742 * asin(sqrt(a)); // 2 * R; R = 6371 km
-  }
-
-  static double cos(num x) {
-    return Math.cos(x);
-  }
-
-  Future<void> _moveCameraToPosition(LatLng position) async {
-    final GoogleMapController controller = await _googleMapController.future;
-    CameraPosition _newCameraPosition = CameraPosition(
-      target: position,
-      zoom: 13,
-    );
-    await controller.animateCamera(
-      CameraUpdate.newCameraPosition(_newCameraPosition),
-    );
-  }
-
-  Future<void> initializeLocationUpdates() async {
-    bool serviceEnabled;
-    PermissionStatus permissionGranted;
-
-    serviceEnabled = await _locationService.serviceEnabled();
-    if (!serviceEnabled) {
-      serviceEnabled = await _locationService.requestService();
-      if (!serviceEnabled) {
-        return;
-      }
-    }
-
-    permissionGranted = await _locationService.hasPermission();
-    if (permissionGranted == PermissionStatus.denied) {
-      permissionGranted = await _locationService.requestPermission();
-      if (permissionGranted != PermissionStatus.granted) {
-        return;
-      }
-    }
-
-    _locationStreamSubscription = _locationService.onLocationChanged
-        .listen((LocationData currentLocation) {
-      if (currentLocation.latitude != null &&
-          currentLocation.longitude != null) {
-        LatLng newLocation =
-            LatLng(currentLocation.latitude!, currentLocation.longitude!);
-
-        // Update the marker to the new location
-        updateLocationMarker(newLocation);
-
-        // Optionally, keep track of the path by adding to your polyline
-        addLocationToRoutePolyline(newLocation);
-
-        _moveCameraToPosition(newLocation);
-      }
-    });
-  }
-
-  void updateLocationMarker(LatLng newLocation) {
-    setState(() {
-      _currentPosition = newLocation;
-      // Update your marker or create a new one if needed
-    });
-  }
-
-  void addLocationToRoutePolyline(LatLng newLocation) {
-    setState(() {
-      // Check if polyline exists, if not create one
-      if (_routePolylines.containsKey(PolylineId("path"))) {
-        final polyline = _routePolylines[PolylineId("path")]!;
-        final updatedPoints = List<LatLng>.from(polyline.points)
-          ..add(newLocation);
-        _routePolylines[PolylineId("path")] =
-            polyline.copyWith(pointsParam: updatedPoints);
-      } else {
-        // Create new polyline if it doesn't exist
-        _routePolylines[PolylineId("path")] = Polyline(
-          polylineId: PolylineId("path"),
-          color: Colors.blue,
-          points: [newLocation],
-          width: 5,
-        );
-      }
-    });
-  }
-
-  Future<List<LatLng>> retrievePolylineCoordinates() async {
+  Future<List<LatLng>> getPolylinePoints() async {
     List<LatLng> polylineCoordinates = [];
     PolylinePoints polylinePoints = PolylinePoints();
     PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
       GOOGLE_MAPS_API_KEY,
-      PointLatLng(_googlePlex.latitude, _googlePlex.longitude),
-      PointLatLng(_applePark.latitude, _applePark.longitude),
+      PointLatLng(_pGooglePlex.latitude, _pGooglePlex.longitude),
+      PointLatLng(_pApplePark.latitude, _pApplePark.longitude),
       travelMode: TravelMode.driving,
     );
     if (result.points.isNotEmpty) {
@@ -298,15 +309,4 @@ class _MapScreenState extends State<MapScreen> {
     return polylineCoordinates;
   }
 
-  void createPolylineFromCoordinates(List<LatLng> polylineCoordinates) async {
-    PolylineId id = PolylineId("polyline");
-    Polyline polyline = Polyline(
-        polylineId: id,
-        color: Colors.black,
-        points: polylineCoordinates,
-        width: 8);
-    setState(() {
-      _routePolylines[id] = polyline;
-    });
-  }
 }
