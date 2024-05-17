@@ -80,7 +80,7 @@ class _HomePageState extends State<HomePage>
               leading: const Icon(Icons.graphic_eq, color: Colors.black), // Light graph icon
               title: const Text('Visual Indicators', style: TextStyle(color: Colors.black)),
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => l.LightChartScreen(globalLightData, LightData: null,),
+                Navigator.push(context, MaterialPageRoute(builder: (context) => l.LightChartScreen(globalLightData),
                 ));
               },
             ),

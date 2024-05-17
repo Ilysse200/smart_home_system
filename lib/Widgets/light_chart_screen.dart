@@ -2,25 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'dart:async';
 
-class LightChartScreen extends StatelessWidget {
+class LightChartScreen extends StatefulWidget {
   final List<LightData> lightData;
 
-  LightChartScreen(this.lightData, {required LightData});
+  LightChartScreen(this.lightData);
+
+  @override
+  _LightChartScreenState createState() => _LightChartScreenState();
+}
+
+class _LightChartScreenState extends State<LightChartScreen> {
+  late TooltipBehavior _tooltipBehavior;
+
+  @override
+  void initState() {
+    super.initState();
+    _tooltipBehavior = TooltipBehavior(enable: true);
+  }
 
   @override
   Widget build(BuildContext context) {
-    double latestIntensity = lightData.isNotEmpty ? lightData.last.intensity : 0;
-
-    Color _getLineColor(double intensity) {
-      if (intensity >= 2000.0) {
-        return Colors.red;
-      } else if (intensity >= 500.0) {
-        return Colors.pink;
-      } else {
-        return Colors.black;
-      }
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text('Light Data Chart'),
@@ -29,60 +30,37 @@ class LightChartScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: double.infinity,
-              height: 300,
+            Expanded(
               child: SfCartesianChart(
                 primaryXAxis: DateTimeAxis(),
-                primaryYAxis: NumericAxis(minimum: 0, maximum: 3000),
+                primaryYAxis: NumericAxis(minimum: 0, maximum: 5000),
+                tooltipBehavior: _tooltipBehavior,
                 series: <CartesianSeries>[
                   LineSeries<LightData, DateTime>(
-                    dataSource: lightData,
+                    dataSource: widget.lightData.isNotEmpty ? widget.lightData : [LightData(DateTime.now(), 0)],
                     xValueMapper: (LightData data, _) => data.time,
                     yValueMapper: (LightData data, _) => data.intensity,
-                    color: _getLineColor(latestIntensity),
+                    color: widget.lightData.isNotEmpty ? getColorForValue(widget.lightData.last.intensity) : Colors.black,
+                    width: 2,
+                    markerSettings: MarkerSettings(isVisible: true),
                   ),
                 ],
               ),
             ),
-            if (latestIntensity >= 2000.0)
-              _buildAlertBox(context, 'Warning!', 'Too much brightness can be harmful to our eyes.', Icons.warning, Colors.red),
-            if (latestIntensity <= 500.0)
-              _buildAlertBox(context, 'Warning!', 'Too little light can be harmful to our eyes.', Icons.warning, Colors.blue),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAlertBox(BuildContext context, String title, String message, IconData icon, Color iconColor) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Row(
-              children: [
-                Icon(icon, color: iconColor),
-                SizedBox(width: 10),
-                Text(title),
-              ],
-            ),
-            content: Text(message),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-    });
-
-    return SizedBox.shrink();
+  Color getColorForValue(double intensity) {
+    if (intensity > 4000) {
+      return Colors.red; // High intensity
+    } else if (intensity > 1000) {
+      return Colors.orange; // Moderate intensity
+    } else {
+      return Colors.green; // Low intensity
+    }
   }
 }
 
