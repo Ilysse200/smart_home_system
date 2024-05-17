@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:smart_home_system/Widgets/Screen/pedometer.dart';
 import 'package:smart_home_system/Widgets/geofencing.dart';
+import 'package:smart_home_system/Widgets/light.dart' as t;
+//import 'package:smart_home_system/Widgets/light.dart';
+import 'package:smart_home_system/Widgets/light_chart_screen.dart' as l;
 import 'package:smart_home_system/Widgets/motionDetector.dart';
-import 'package:smart_home_system/light.dart';
+import 'package:smart_home_system/main.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,6 +17,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  
 
   @override
   void initState() {
@@ -69,7 +73,15 @@ class _HomePageState extends State<HomePage>
               leading: const Icon(Icons.wb_sunny, color: Colors.black), // Light sensor icon
               title: const Text('Light Sensor App', style: TextStyle(color: Colors.black)),
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => BrightnessControl()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => t.BrightnessControl()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.graphic_eq, color: Colors.black), // Light graph icon
+              title: const Text('Visual Indicators', style: TextStyle(color: Colors.black)),
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => l.LightChartScreen(globalLightData, LightData: null,),
+                ));
               },
             ),
             ListTile(
