@@ -1,66 +1,96 @@
-import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:light_sensor/light_sensor.dart';
+import 'package:sensors_plus/sensors_plus.dart'; // Ensure you have the correct package for light sensor.
+import 'package:syncfusion_flutter_charts/charts.dart';
 
 class LightChartScreen extends StatefulWidget {
-  final List<LightData> lightData;
-
-  LightChartScreen(this.lightData);
-
   @override
   _LightChartScreenState createState() => _LightChartScreenState();
 }
 
 class _LightChartScreenState extends State<LightChartScreen> {
-  late TooltipBehavior _tooltipBehavior;
+  final List<LightData> lightData = [];
+  late StreamSubscription<int> _lightSubscription;
+  bool _showHighIntensityPopup = true; // Flag for showing high intensity popup
+  bool _showLowIntensityPopup = true; // Flag for showing low intensity popup
 
   @override
   void initState() {
     super.initState();
-    _tooltipBehavior = TooltipBehavior(enable: true);
+    _listenToLightSensor();
+  }
+
+  void _listenToLightSensor() {
+    // Assuming you have a similar package or method to fetch light data
+    _lightSubscription = LightSensor.luxStream().listen((int luxValue) {
+      final newLightData = LightData(DateTime.now(), luxValue.toDouble());
+      setState(() {
+        lightData.add(newLightData);
+        checkAndTriggerPopups(luxValue.toDouble());
+      });
+    });
+  }
+
+  void checkAndTriggerPopups(double intensity) {
+    if (intensity >= 4700 && _showHighIntensityPopup) {
+      showAlert('Too much brightness is harmful');
+      _showHighIntensityPopup = false;
+    } else if (intensity < 4700) {
+      _showHighIntensityPopup = true;
+    }
+
+    if (intensity < 10 && _showLowIntensityPopup) {
+      showAlert('Too little light will harm your sight');
+      _showLowIntensityPopup = false;
+    } else if (intensity >= 290) {
+      _showLowIntensityPopup = true;
+    }
+  }
+
+  void showAlert(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Light Level Alert"),
+        content: Text(message),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Light Data Chart'),
+        title: Text('Light Intensity Monitor'),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: SfCartesianChart(
-                primaryXAxis: DateTimeAxis(),
-                primaryYAxis: NumericAxis(minimum: 0, maximum: 5000),
-                tooltipBehavior: _tooltipBehavior,
-                series: <CartesianSeries>[
-                  LineSeries<LightData, DateTime>(
-                    dataSource: widget.lightData.isNotEmpty ? widget.lightData : [LightData(DateTime.now(), 0)],
-                    xValueMapper: (LightData data, _) => data.time,
-                    yValueMapper: (LightData data, _) => data.intensity,
-                    color: widget.lightData.isNotEmpty ? getColorForValue(widget.lightData.last.intensity) : Colors.black,
-                    width: 2,
-                    markerSettings: MarkerSettings(isVisible: true),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      body: SfCartesianChart(
+        primaryXAxis: DateTimeAxis(),
+        primaryYAxis: NumericAxis(minimum: 0, maximum: 15000),
+        series: <LineSeries<LightData, DateTime>>[
+          LineSeries<LightData, DateTime>(
+            dataSource: lightData,
+            xValueMapper: (LightData data, _) => data.time,
+            yValueMapper: (LightData data, _) => data.intensity,
+            markerSettings: MarkerSettings(isVisible: true),
+          ),
+        ],
       ),
     );
   }
 
-  Color getColorForValue(double intensity) {
-    if (intensity > 4000) {
-      return Colors.red; // High intensity
-    } else if (intensity > 1000) {
-      return Colors.orange; // Moderate intensity
-    } else {
-      return Colors.green; // Low intensity
-    }
+  @override
+  void dispose() {
+    _lightSubscription.cancel();
+    super.dispose();
   }
 }
 
