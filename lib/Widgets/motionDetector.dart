@@ -25,7 +25,7 @@ class _MotionDetectorState extends State<MotionDetector> {
             y = event.y;
             z = event.z;
             // Determine if the device is shaking
-            bool currentlyShaking = x!.abs() > 10 || y!.abs() > 10 || z!.abs() > 10;
+            bool currentlyShaking = x!.abs() > 10 || y!.abs() > 10 || z!.abs() > 9;
             if (currentlyShaking && !isShaking) {
               isShaking = true;
               showShakeDialog(); // Show dialog on shake
@@ -57,7 +57,7 @@ class _MotionDetectorState extends State<MotionDetector> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text("Motion Detected"),
-          content: Text("Shaking has been detected."),
+          // content: Text("Shaking has been detected."),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(),

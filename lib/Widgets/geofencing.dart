@@ -18,8 +18,8 @@ class _SimpleMapState extends State<SimpleMap> {
   final LatLng destinationLocation = LatLng(-1.9501, 30.0589); // Example coordinates for KK 561 St
   final Completer<GoogleMapController> _controller = Completer();
 
-  static const LatLng _pGooglePlex=LatLng(37.4223, -122.0848);
-  static const LatLng _pApplePark=LatLng(37.3346, -122.0090);
+  static const LatLng _pGooglePlex = LatLng(37.4223, -122.0848);
+  static const LatLng _pApplePark = LatLng(37.3346, -122.0090);
 
   Location _locationController = Location();
   Map<PolygonId, Polygon> _polygons = {};
@@ -41,11 +41,7 @@ class _SimpleMapState extends State<SimpleMap> {
     _initializeNotifications();
     getCurrentLocation();
     _createGeofence();
-    getPolylinePoints().then((coordinates) => {
-              generatePolyLineFromPoints(coordinates),
-    });
   }
-  
 
   void _initializeNotifications() {
     const AndroidInitializationSettings initializationSettingsAndroid =
@@ -59,89 +55,61 @@ class _SimpleMapState extends State<SimpleMap> {
   }
 
   void getCurrentLocation() async {
-    currentLocation = await location.getLocation().then((value) {
-      currentLocation = LatLng(value.latitude!, value.longitude!);
-      addCurrentLocMarker(currentLocation!);
-      return currentLocation;
-    });
-
-    _locationSubscription = location.onLocationChanged.listen((newLoc) {
+    var result = await location.getLocation();
+    if (result != null && result.latitude != null && result.longitude != null) {
       setState(() {
-        currentLocation = LatLng(newLoc.latitude!, newLoc.longitude!);
-        addCurrentLocMarker(currentLocation!);
-        _checkGeofenceStatus(newLoc.latitude!, newLoc.longitude!);
+        currentLocation = LatLng(result.latitude ?? 0 , result.longitude ?? 0);
+        addCurrentLocMarker(currentLocation);
       });
+    }
+
+    _locationSubscription = location.onLocationChanged.listen((LocationData newLoc) {
+      if (newLoc.latitude != null && newLoc.longitude != null) {
+        setState(() {
+          currentLocation = LatLng(newLoc.latitude ?? 0, newLoc.longitude ?? 0);
+          addCurrentLocMarker(currentLocation);
+          _checkGeofenceStatus(newLoc.latitude ?? 0, newLoc.longitude ?? 0);
+        });
+      }
     });
+  }
+
+  void addCurrentLocMarker(LatLng? location) {
+    if (location != null) {
+      Marker currentLocMarker = Marker(
+        markerId: MarkerId('currentLocation'),
+        icon: BitmapDescriptor.defaultMarker,
+        position: location,
+        infoWindow: InfoWindow(title: 'Current Location', snippet: 'You are here'),
+      );
+      setState(() {
+        _markers.add(currentLocMarker);
+      });
+    }
   }
 
   void _createGeofence() {
-  // Define the boundaries for the five-sided geofence
-  List<LatLng> fenceBounds = [
-    LatLng(-1.9740, 30.0274), // Northwest corner
-    LatLng(-1.9740, 30.1300), // Northeast corner
-    LatLng(-1.8980, 30.1300), // Southeast corner
-    LatLng(-1.9120, 30.0787), // Southwest point (custom)
-    LatLng(-1.9480, 30.0500), // Center west point (custom)
-  ];
+    // Define the boundaries for the five-sided geofence
+    List<LatLng> fenceBounds = [
+      LatLng(-1.9740, 30.0274), // Northwest corner
+      LatLng(-1.9740, 30.1300), // Northeast corner
+      LatLng(-1.8980, 30.1300), // Southeast corner
+      LatLng(-1.9120, 30.0787), // Southwest point (custom)
+      LatLng(-1.9480, 30.0500), // Center west point (custom)
+    ];
 
-  // Create a polygon to represent the geofence boundaries
-  PolygonId polygonId = PolygonId('fiveSidedFence');
-  Polygon polygon = Polygon(
-    polygonId: polygonId,
-    points: fenceBounds,
-    strokeWidth: 2,
-    strokeColor: Color.fromARGB(236, 142, 129, 218).withOpacity(0.3),
-    fillColor: Color.fromARGB(27, 136, 98, 130).withOpacity(0.3),
-  );
-
-  // Add the polygon to the map
-  setState(() {
-    _polygons[polygonId] = polygon;
-  });
-
-  // Start location updates subscription to monitor device's location
-  _startLocationUpdates();
-}
-
-
-  void _startLocationUpdates() async {
-    _locationSubscription = _locationController.onLocationChanged
-        .listen((LocationData currentLocation) {
-      // Check if the device's location is inside or outside the geofence
-      bool insideGeofence = _isLocationInsideGeofence(
-          currentLocation.latitude!, currentLocation.longitude!);
-
-      if (insideGeofence && !_notificationSentInSide) {
-        _triggerInSideNotification();
-        _notificationSentInSide = true;
-        _notificationSentOutSide = false;
-      } else if (!insideGeofence && !_notificationSentOutSide) {
-        _triggerOutSideNotification();
-        _notificationSentOutSide = true;
-        _notificationSentInSide = false;
-   }});}
-
-  void addCurrentLocMarker(LatLng location) {
-    Marker currentLocMarker = Marker(
-      markerId: MarkerId('currentLocation'),
-      icon: BitmapDescriptor.defaultMarker,
-      position: location,
-      infoWindow: InfoWindow(title: 'Current Location', snippet: 'You are here'),
+    // Create a polygon to represent the geofence boundaries
+    PolygonId polygonId = PolygonId('fiveSidedFence');
+    Polygon polygon = Polygon(
+      polygonId: polygonId,
+      points: fenceBounds,
+      strokeWidth: 2,
+      strokeColor: Color.fromARGB(236, 142, 129, 218).withOpacity(0.3),
+      fillColor: Color.fromARGB(27, 136, 98, 130).withOpacity(0.3),
     );
-    setState(() {
-      _markers.add(currentLocMarker);
-    });
-  }
 
-  void addDestinationMarker() {
-    Marker destinationMarker = Marker(
-      markerId: MarkerId('destinationLocation'),
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-      position: destinationLocation,
-      infoWindow: InfoWindow(title: 'Destination Location', snippet: 'Destination location...'),
-    );
     setState(() {
-      _markers.add(destinationMarker);
+      _polygons[polygonId] = polygon;
     });
   }
 
@@ -192,15 +160,6 @@ class _SimpleMapState extends State<SimpleMap> {
     return isInside;
   }
 
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double p = 0.017453292519943295; // PI / 180
-    final double a = 0.5 - 
-        cos((lat2 - lat1) * p) / 2 + 
-        cos(lat1 * p) * cos(lat2 * p) * 
-        (1 - cos((lon2 - lon1) * p)) / 2;
-    return 12742 * asin(sqrt(a)) * 1000; // 2 * R; R = 6371 km
-  }
-
   Future<void> _triggerInSideNotification() async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
@@ -217,9 +176,7 @@ class _SimpleMapState extends State<SimpleMap> {
       'You are inside the geofence area.',
       platformChannelSpecifics,
     );
-    print('Inside geofence notification sent');
   }
-  
 
   Future<void> _triggerOutSideNotification() async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
@@ -237,7 +194,6 @@ class _SimpleMapState extends State<SimpleMap> {
       'You are outside the geofence area.',
       platformChannelSpecifics,
     );
-    print('Outside geofence notification sent');
   }
 
   @override
@@ -248,30 +204,12 @@ class _SimpleMapState extends State<SimpleMap> {
         centerTitle: true,
       ),
       body: GoogleMap(
-              onMapCreated: ((GoogleMapController controller) =>
-                  _controller.complete(controller)),
-              initialCameraPosition: CameraPosition(
-                target: destinationLocation,
-                zoom: 13,
-              ),
-              polygons: Set<Polygon>.of(_polygons.values),
-              markers: {
-                Marker(
-                  markerId: MarkerId("_currentLocation"),
-                  icon: BitmapDescriptor.defaultMarker,
-                  position: currentLocation!,
-                ),
-                Marker(
-                    markerId: MarkerId("_sourceLocation"),
-                    icon: BitmapDescriptor.defaultMarker,
-                    position: _pGooglePlex),
-                Marker(
-                    markerId: MarkerId("_destionationLocation"),
-                    icon: BitmapDescriptor.defaultMarker,
-                    position: _pApplePark)
-              },
-              polylines: Set<Polyline>.of(polylines.values),
-            ),
+        onMapCreated: ((GoogleMapController controller) => _controller.complete(controller)),
+        initialCameraPosition: CameraPosition(target: destinationLocation, zoom: 13),
+        polygons: Set<Polygon>.of(_polygons.values),
+        markers: _markers,
+        polylines: Set<Polyline>.of(polylines.values),
+      ),
     );
   }
 
@@ -280,35 +218,4 @@ class _SimpleMapState extends State<SimpleMap> {
     _locationSubscription?.cancel();
     super.dispose();
   }
-
-  void generatePolyLineFromPoints(List<LatLng> polylineCoordinates) async {
-    PolylineId id = PolylineId("poly");
-    Polyline polyline = Polyline(
-        polylineId: id,
-        color: Colors.black,
-        points: polylineCoordinates,
-        width: 8);
-    setState(() {
-      polylines[id] = polyline;
-    });
-  }
-  Future<List<LatLng>> getPolylinePoints() async {
-    List<LatLng> polylineCoordinates = [];
-    PolylinePoints polylinePoints = PolylinePoints();
-    PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
-      GOOGLE_MAPS_API_KEY,
-      PointLatLng(_pGooglePlex.latitude, _pGooglePlex.longitude),
-      PointLatLng(_pApplePark.latitude, _pApplePark.longitude),
-      travelMode: TravelMode.driving,
-    );
-    if (result.points.isNotEmpty) {
-      result.points.forEach((PointLatLng point) {
-        polylineCoordinates.add(LatLng(point.latitude, point.longitude));
-      });
-    } else {
-      print(result.errorMessage);
-    }
-    return polylineCoordinates;
-  }
-
 }
